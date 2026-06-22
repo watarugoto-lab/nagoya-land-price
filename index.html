@@ -1,0 +1,798 @@
+<title>名古屋市 沿線別 坪単価マップ</title>
+<style>
+:root{--bg:#F4F3EF;--sf:#FFF;--tx:#1A1A1C;--ts:#6B6B70;--ac:#1D3461;--bd:#E2E2E5}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--tx);font-family:'Hiragino Sans','Yu Gothic UI','YuGothic','Meiryo',sans-serif;line-height:1.5;-webkit-font-smoothing:antialiased}
+.wrap{max-width:900px;margin:0 auto}
+/* header */
+.hd{background:var(--ac);color:#fff;padding:16px 20px 14px}
+.hd-title{font-family:'Hiragino Mincho ProN','YuMincho',Georgia,serif;font-size:clamp(17px,4vw,22px);font-weight:600;letter-spacing:.06em;margin-bottom:4px}
+.hd-meta{font-size:11px;opacity:.7;display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+.badge{background:rgba(255,255,255,.18);padding:1px 8px;border-radius:10px;font-size:10px}
+/* budget */
+.budget-bar{background:var(--sf);border-bottom:1px solid var(--bd);padding:10px 16px;display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.budget-bar label{font-size:12px;white-space:nowrap}
+#bLabel{font-weight:700;color:var(--ac)}
+#bSlider{flex:1;min-width:120px;max-width:240px;accent-color:var(--ac)}
+#bReset{font-size:11px;padding:3px 10px;border:1px solid var(--bd);border-radius:14px;background:#fff;cursor:pointer;color:var(--ts)}
+/* view tabs */
+.view-bar{display:flex;gap:0;background:var(--sf);border-bottom:1px solid var(--bd);padding:0 12px}
+.vbtn{padding:11px 16px 9px;font-family:inherit;font-size:12.5px;font-weight:500;border:none;background:none;cursor:pointer;color:var(--ts);border-bottom:3px solid transparent}
+.vbtn.active{color:var(--tx);font-weight:700;border-bottom-color:var(--ac)}
+/* line tabs */
+.line-tabs{background:var(--sf);border-bottom:1px solid var(--bd);display:flex;overflow-x:auto;scrollbar-width:none;padding:0 8px}
+.line-tabs::-webkit-scrollbar{display:none}
+.ltab{padding:12px 13px 10px;border:none;background:none;cursor:pointer;font-family:inherit;font-size:12px;color:var(--ts);border-bottom:3px solid transparent;white-space:nowrap;display:flex;align-items:center;gap:6px;flex-shrink:0}
+.ltab:hover{color:var(--tx)}
+.ltab.active{color:var(--tx);font-weight:700;border-bottom-color:var(--lc,#333)}
+.ldot{width:8px;height:8px;border-radius:50%;background:var(--lc,#999);flex-shrink:0}
+/* chart */
+.chart-card{margin:14px;background:var(--sf);border-radius:14px;box-shadow:0 2px 8px rgba(0,0,0,.07);overflow:hidden}
+.chart-head{padding:12px 18px 2px;display:flex;align-items:baseline;gap:10px;flex-wrap:wrap}
+.chart-name{font-family:'Hiragino Mincho ProN','YuMincho',serif;font-size:14px;font-weight:700}
+.chart-dir{font-size:11px;color:var(--ts)}
+.chart-scroll{overflow-x:auto;padding-bottom:4px;scrollbar-width:thin;scrollbar-color:var(--bd) transparent}
+.chart-scroll::-webkit-scrollbar{height:4px}
+.chart-scroll::-webkit-scrollbar-thumb{background:var(--bd);border-radius:2px}
+/* map */
+.map-toggles{background:var(--sf);border-bottom:1px solid var(--bd);padding:8px 14px;display:flex;gap:8px;flex-wrap:wrap}
+.mtog{display:flex;align-items:center;gap:5px;font-size:11px;cursor:pointer;user-select:none}
+.mtog input{accent-color:var(--lc,#333)}
+.map-wrap{margin:14px;background:var(--sf);border-radius:14px;box-shadow:0 2px 8px rgba(0,0,0,.07);overflow:hidden;position:relative}
+#mapCanvas{display:block;width:100%;cursor:grab;touch-action:none}
+#mapCanvas.dragging{cursor:grabbing}
+.map-ctrl{position:absolute;top:12px;right:12px;display:flex;flex-direction:column;gap:4px;z-index:10}
+.map-ctrl button{width:34px;height:34px;border:1px solid var(--bd);border-radius:8px;background:rgba(255,255,255,.95);cursor:pointer;font-size:17px;font-weight:700;color:var(--tx);box-shadow:0 1px 4px rgba(0,0,0,.12);display:flex;align-items:center;justify-content:center;transition:background .1s}
+.map-ctrl button:hover{background:#fff}
+.map-ctrl .sep{height:8px}
+.map-hint{position:absolute;bottom:10px;left:12px;font-size:10px;color:rgba(0,0,0,.4);pointer-events:none}
+.map-scale{position:absolute;bottom:10px;right:12px;pointer-events:none}
+/* detail */
+.detail{margin:0 14px 14px;background:var(--sf);border-radius:14px;padding:14px 18px 16px;box-shadow:0 2px 8px rgba(0,0,0,.07);animation:si .16s ease}
+.detail.hidden{display:none}
+@keyframes si{from{opacity:0;transform:translateY(-5px)}to{opacity:1;transform:translateY(0)}}
+.d-row{display:flex;align-items:flex-start;gap:16px;flex-wrap:wrap}
+.d-left{flex:1;min-width:140px}
+.d-name{font-family:'Hiragino Mincho ProN','YuMincho',serif;font-size:17px;font-weight:700;margin-bottom:2px}
+.d-line{font-size:11px;color:var(--ts);margin-bottom:8px}
+.d-price{font-size:34px;font-weight:800;font-variant-numeric:tabular-nums;line-height:1;letter-spacing:-.02em}
+.d-unit{font-size:13px;font-weight:400;margin-left:2px}
+.d-range{font-size:11px;color:var(--ts);margin-top:4px}
+.d-count{font-size:12px;margin-top:6px;color:var(--ts)}
+.d-count b{color:var(--tx)}
+.d-right{flex-shrink:0;padding-top:2px}
+.tier{display:inline-block;padding:4px 12px;border-radius:20px;font-size:11px;font-weight:700;color:#fff}
+.d-note{font-size:10px;color:var(--ts);margin-top:10px;padding-top:10px;border-top:1px solid var(--bd)}
+/* legend */
+.legend{margin:0 14px 14px;background:var(--sf);border-radius:14px;padding:12px 18px;box-shadow:0 2px 8px rgba(0,0,0,.07)}
+.leg-title{font-size:10px;text-transform:uppercase;letter-spacing:.1em;color:var(--ts);margin-bottom:8px}
+.leg-bar{display:flex;border-radius:4px;overflow:hidden;height:9px;margin-bottom:6px}
+.leg-seg{flex:1}
+.leg-labels{display:flex;justify-content:space-between;font-size:10px;color:var(--ts)}
+.note{margin:0 14px 28px;font-size:10px;color:var(--ts);line-height:1.7}
+</style>
+
+<div class="wrap">
+<header class="hd">
+  <div class="hd-title">名古屋市 沿線別 坪単価マップ</div>
+  <div class="hd-meta">
+    <span>住宅地参考値（万円/坪）</span>
+    <span class="badge">2026年度版</span>
+    <span>公示地価・路線価ベース</span>
+  </div>
+</header>
+
+<div class="budget-bar">
+  <label>予算上限：<b id="bLabel">制限なし</b></label>
+  <input type="range" id="bSlider" min="15" max="210" step="5" value="210">
+  <button id="bReset">全表示</button>
+</div>
+
+<div class="view-bar">
+  <button class="vbtn active" id="vChart">沿線チャート</button>
+  <button class="vbtn" id="vMap">地図ビュー</button>
+</div>
+
+<div id="chartPane">
+  <div class="line-tabs" id="lineTabs"></div>
+  <div class="chart-card">
+    <div class="chart-head">
+      <span class="chart-name" id="chartName"></span>
+      <span class="chart-dir" id="chartDir"></span>
+    </div>
+    <div class="chart-scroll"><svg id="chartSvg"></svg></div>
+  </div>
+</div>
+
+<div id="mapPane" style="display:none">
+  <div class="map-toggles" id="mapToggles"></div>
+  <div class="map-wrap">
+    <canvas id="mapCanvas" width="760" height="560"></canvas>
+    <div class="map-ctrl">
+      <button id="zIn" title="拡大">＋</button>
+      <button id="zOut" title="縮小">－</button>
+      <div class="sep"></div>
+      <button id="zReset" title="全体表示" style="font-size:13px">全体</button>
+    </div>
+    <div class="map-hint">スクロール：ズーム ／ ドラッグ：移動 ／ 駅タップ：詳細</div>
+  </div>
+</div>
+
+<div id="detail" class="detail hidden">
+  <div class="d-row">
+    <div class="d-left">
+      <div class="d-name" id="dName"></div>
+      <div class="d-line" id="dLine"></div>
+      <div class="d-price" id="dPrice"></div>
+      <div class="d-range" id="dRange"></div>
+      <div class="d-count" id="dCount"></div>
+    </div>
+    <div class="d-right"><div class="tier" id="dTier"></div></div>
+  </div>
+  <div class="d-note">駅徒歩10分圏内・住宅地の目安価格です。物件数は市場動向をもとにした参考値です。</div>
+</div>
+
+<div class="legend">
+  <div class="leg-title">坪単価の目安（万円/坪）</div>
+  <div class="leg-bar">
+    <div class="leg-seg" style="background:#1B6598"></div>
+    <div class="leg-seg" style="background:#2D7D46"></div>
+    <div class="leg-seg" style="background:#B08800"></div>
+    <div class="leg-seg" style="background:#CC5500"></div>
+    <div class="leg-seg" style="background:#9B1B1B"></div>
+  </div>
+  <div class="leg-labels"><span>〜35万</span><span>35〜50万</span><span>50〜70万</span><span>70〜100万</span><span>100万〜</span></div>
+</div>
+
+<p class="note">
+  ※ 表示価格は公示地価・路線価等をもとにした参考値です。実際の取引価格とは異なります。<br>
+  ※ 住宅地（低層住居専用地域等）を想定。商業地はこの1.5〜5倍程度になる場合があります。<br>
+  ※ 物件数は市場状況をもとにした概算です。実際の在庫は時期・条件によって変動します。
+</p>
+</div>
+
+<script>
+// 価格→色
+function pc(p){return p>=100?'#9B1B1B':p>=70?'#CC5500':p>=50?'#B08800':p>=35?'#2D7D46':'#1B6598'}
+function tier(p){
+  if(p>=100)return{l:'最高価格帯',c:'#9B1B1B'};
+  if(p>=70) return{l:'高価格帯',c:'#CC5500'};
+  if(p>=50) return{l:'中高価格帯',c:'#B08800'};
+  if(p>=35) return{l:'標準価格帯',c:'#2D7D46'};
+  return{l:'手頃価格帯',c:'#1B6598'};
+}
+function estCount(name,price){
+  let h=0;for(const c of name)h=(h*31+c.charCodeAt(0))&0xFFFFFF;
+  h=Math.abs(h);
+  if(price>=150)return 10+(h%20);
+  if(price>=100)return 25+(h%25);
+  if(price>=70) return 45+(h%35);
+  if(price>=50) return 70+(h%50);
+  return 95+(h%80);
+}
+
+// ── 地図ビュー ──
+const CW=760,CH=560;
+// 1倍時のスケール（px/度）
+const BSX=2667,BSY=1960;
+// ビュー状態
+let view={cx:136.945,cy:35.145,zoom:1};
+const VIEW_DEF={cx:136.945,cy:35.145,zoom:1};
+
+function geoToCanvas(lon,lat){
+  return{x:CW/2+(lon-view.cx)*BSX*view.zoom,
+         y:CH/2-(lat-view.cy)*BSY*view.zoom};
+}
+function canvasToGeo(cx,cy){
+  return{lon:view.cx+(cx-CW/2)/(BSX*view.zoom),
+         lat:view.cy-(cy-CH/2)/(BSY*view.zoom)};
+}
+function clampView(){
+  view.zoom=Math.max(0.4,Math.min(16,view.zoom));
+}
+
+// 路線データ  g=[lon,lat] (地図表示用)
+const LINES=[
+  {id:'h',name:'東山線',full:'市営地下鉄 東山線',color:'#F7931E',dir:'高畑 ←→ 藤が丘',st:[
+    {n:'高畑',p:31,r:'26〜37',g:[136.848,35.163]},
+    {n:'八田',p:29,r:'24〜34',g:[136.857,35.161]},
+    {n:'岩塚',p:33,r:'28〜39',g:[136.866,35.162]},
+    {n:'中村公園',p:40,r:'34〜47',g:[136.872,35.163]},
+    {n:'中村日赤',p:46,r:'40〜53',g:[136.877,35.165]},
+    {n:'本陣',p:49,r:'43〜56',g:[136.879,35.167]},
+    {n:'亀島',p:69,r:'60〜79',g:[136.881,35.169]},
+    {n:'名古屋',p:180,r:'140〜230+',g:[136.882,35.170]},
+    {n:'伏見',p:102,r:'88〜120',g:[136.901,35.168]},
+    {n:'栄',p:102,r:'88〜120',g:[136.909,35.170]},
+    {n:'新栄町',p:73,r:'63〜85',g:[136.920,35.168]},
+    {n:'千種',p:82,r:'71〜95',g:[136.927,35.163]},
+    {n:'今池',p:74,r:'64〜86',g:[136.929,35.157]},
+    {n:'池下',p:83,r:'72〜96',g:[136.940,35.157]},
+    {n:'覚王山',p:91,r:'79〜105',g:[136.949,35.160]},
+    {n:'本山',p:88,r:'76〜102',g:[136.957,35.159]},
+    {n:'東山公園',p:58,r:'50〜67',g:[136.969,35.161]},
+    {n:'星ヶ丘',p:69,r:'59〜80',g:[136.982,35.159]},
+    {n:'一社',p:57,r:'49〜66',g:[136.994,35.158]},
+    {n:'上社',p:50,r:'43〜58',g:[137.006,35.163]},
+    {n:'藤が丘',p:48,r:'41〜56',g:[137.020,35.168]},
+  ]},
+  {id:'s',name:'桜通線',full:'市営地下鉄 桜通線',color:'#E60012',dir:'中村区役所 ←→ 徳重',st:[
+    {n:'中村区役所',p:63,r:'54〜73',g:[136.869,35.175]},
+    {n:'名古屋',p:180,r:'140〜230+',g:[136.882,35.170]},
+    {n:'国際センター',p:97,r:'84〜113',g:[136.897,35.172]},
+    {n:'丸の内',p:91,r:'78〜106',g:[136.902,35.171]},
+    {n:'久屋大通',p:84,r:'72〜97',g:[136.908,35.171]},
+    {n:'高岳',p:72,r:'62〜84',g:[136.917,35.168]},
+    {n:'車道',p:68,r:'58〜79',g:[136.924,35.163]},
+    {n:'今池',p:74,r:'64〜86',g:[136.929,35.157]},
+    {n:'吹上',p:64,r:'55〜74',g:[136.935,35.147]},
+    {n:'御器所',p:60,r:'52〜70',g:[136.940,35.141]},
+    {n:'桜山',p:55,r:'47〜64',g:[136.938,35.130]},
+    {n:'瑞穂区役所',p:57,r:'49〜66',g:[136.942,35.121]},
+    {n:'瑞穂運動場西',p:53,r:'45〜62',g:[136.940,35.112]},
+    {n:'リハビリセンター',p:51,r:'44〜59',g:[136.931,35.104]},
+    {n:'新瑞橋',p:50,r:'43〜58',g:[136.924,35.096]},
+    {n:'妙音通',p:48,r:'41〜56',g:[136.916,35.086]},
+    {n:'弥富',p:44,r:'37〜52',g:[136.910,35.077]},
+    {n:'桜本町',p:40,r:'34〜47',g:[136.904,35.069]},
+    {n:'笠寺',p:37,r:'31〜44',g:[136.898,35.056]},
+    {n:'鶴里',p:32,r:'27〜38',g:[136.895,35.045]},
+    {n:'野並',p:30,r:'25〜36',g:[136.913,35.037]},
+    {n:'徳重',p:26,r:'21〜31',g:[136.910,35.019]},
+  ]},
+  {id:'m',name:'名城線',full:'市営地下鉄 名城線',color:'#522886',dir:'環状（大曽根〜栄〜金山〜本山〜大曽根）',st:[
+    {n:'大曽根',p:61,r:'52〜71',g:[136.921,35.180]},
+    {n:'ドーム前矢田',p:54,r:'46〜63',g:[136.929,35.184]},
+    {n:'矢田',p:49,r:'42〜57',g:[136.920,35.187]},
+    {n:'砂田橋',p:51,r:'44〜60',g:[136.919,35.183]},
+    {n:'茶屋ヶ坂',p:55,r:'47〜64',g:[136.940,35.175]},
+    {n:'本山',p:88,r:'76〜102',g:[136.957,35.159]},
+    {n:'自由ヶ丘',p:74,r:'64〜86',g:[136.966,35.147]},
+    {n:'八事',p:69,r:'59〜80',g:[136.959,35.138]},
+    {n:'八事日赤',p:66,r:'57〜77',g:[136.950,35.134]},
+    {n:'リハビリセンター',p:51,r:'44〜59',g:[136.931,35.104]},
+    {n:'瑞穂運動場東',p:53,r:'45〜62',g:[136.941,35.112]},
+    {n:'新瑞橋',p:50,r:'43〜58',g:[136.924,35.096]},
+    {n:'堀田',p:54,r:'46〜63',g:[136.910,35.110]},
+    {n:'伝馬町',p:49,r:'42〜57',g:[136.910,35.120]},
+    {n:'金山',p:78,r:'67〜91',g:[136.905,35.143]},
+    {n:'神宮西',p:52,r:'45〜61',g:[136.895,35.137]},
+    {n:'東別院',p:64,r:'55〜75',g:[136.903,35.153]},
+    {n:'上前津',p:69,r:'59〜80',g:[136.907,35.161]},
+    {n:'矢場町',p:74,r:'64〜86',g:[136.909,35.166]},
+    {n:'栄',p:102,r:'88〜120',g:[136.909,35.170]},
+    {n:'久屋大通',p:84,r:'72〜97',g:[136.908,35.171]},
+    {n:'市役所',p:88,r:'76〜102',g:[136.905,35.178]},
+    {n:'名城公園',p:80,r:'68〜93',g:[136.901,35.185]},
+    {n:'黒川',p:72,r:'62〜84',g:[136.899,35.191]},
+    {n:'志賀本通',p:63,r:'54〜73',g:[136.906,35.193]},
+    {n:'平安通',p:61,r:'52〜71',g:[136.914,35.193]},
+  ]},
+  {id:'t',name:'鶴舞線',full:'市営地下鉄 鶴舞線',color:'#009944',dir:'上小田井 ←→ 赤池',st:[
+    {n:'上小田井',p:40,r:'34〜47',g:[136.864,35.208]},
+    {n:'庄内緑地公園',p:40,r:'34〜47',g:[136.875,35.204]},
+    {n:'庄内通',p:44,r:'38〜51',g:[136.879,35.197]},
+    {n:'浄心',p:52,r:'45〜61',g:[136.882,35.187]},
+    {n:'浅間町',p:61,r:'52〜71',g:[136.886,35.178]},
+    {n:'丸の内',p:91,r:'78〜106',g:[136.902,35.171]},
+    {n:'大須観音',p:72,r:'62〜84',g:[136.901,35.164]},
+    {n:'上前津',p:69,r:'59〜80',g:[136.907,35.161]},
+    {n:'鶴舞',p:72,r:'62〜84',g:[136.906,35.157]},
+    {n:'荒畑',p:61,r:'52〜71',g:[136.914,35.149]},
+    {n:'御器所',p:61,r:'52〜71',g:[136.940,35.141]},
+    {n:'川名',p:69,r:'59〜80',g:[136.948,35.154]},
+    {n:'塩釜口',p:57,r:'49〜66',g:[136.963,35.149]},
+    {n:'植田',p:43,r:'37〜51',g:[136.978,35.124]},
+    {n:'原',p:40,r:'34〜47',g:[136.984,35.109]},
+    {n:'平針',p:33,r:'28〜39',g:[136.994,35.090]},
+    {n:'赤池',p:31,r:'26〜37',g:[137.007,35.081]},
+  ]},
+  {id:'mt',name:'名鉄本線',full:'名鉄名古屋本線（名鉄岐阜〜豊橋 全線）',color:'#D62828',dir:'名鉄岐阜 ←→ 豊橋',st:[
+    {n:'名鉄岐阜',p:28,r:'23〜34'},
+    {n:'加納',p:19,r:'15〜23'},
+    {n:'茶所',p:18,r:'14〜22'},
+    {n:'岐南',p:21,r:'17〜26'},
+    {n:'笠松',p:25,r:'20〜31'},
+    {n:'木曽川',p:21,r:'17〜26'},
+    {n:'新木曽川',p:23,r:'18〜28',g:[136.829,35.263]},
+    {n:'石刀',p:23,r:'18〜28',g:[136.840,35.257]},
+    {n:'今伊勢',p:27,r:'22〜33',g:[136.847,35.252]},
+    {n:'名鉄一宮',p:34,r:'28〜41',g:[136.857,35.249]},
+    {n:'妙興寺',p:26,r:'21〜32',g:[136.851,35.241]},
+    {n:'島氏永',p:26,r:'21〜32',g:[136.853,35.233]},
+    {n:'国府宮',p:33,r:'27〜40',g:[136.857,35.228]},
+    {n:'大里',p:29,r:'24〜35',g:[136.851,35.235]},
+    {n:'新清洲',p:36,r:'30〜43',g:[136.863,35.218]},
+    {n:'二ツ杁',p:43,r:'37〜51',g:[136.867,35.207]},
+    {n:'西枇杷島',p:46,r:'39〜54',g:[136.869,35.200]},
+    {n:'東枇杷島',p:52,r:'44〜61',g:[136.871,35.192]},
+    {n:'栄生',p:65,r:'56〜76',g:[136.876,35.179]},
+    {n:'名古屋',p:180,r:'140〜230+',g:[136.882,35.170]},
+    {n:'山王',p:74,r:'64〜86',g:[136.895,35.155]},
+    {n:'金山',p:78,r:'67〜91',g:[136.905,35.143]},
+    {n:'神宮前',p:57,r:'49〜66',g:[136.907,35.131]},
+    {n:'堀田',p:55,r:'47〜64',g:[136.908,35.122]},
+    {n:'呼続',p:45,r:'38〜53',g:[136.908,35.115]},
+    {n:'桜',p:41,r:'35〜48',g:[136.906,35.110]},
+    {n:'笠寺',p:38,r:'32〜45',g:[136.901,35.101]},
+    {n:'本笠寺',p:35,r:'29〜41',g:[136.898,35.094]},
+    {n:'大江',p:29,r:'24〜35',g:[136.893,35.083]},
+    {n:'豊田本町',p:27,r:'22〜33',g:[136.895,35.072]},
+    {n:'道徳',p:29,r:'24〜35',g:[136.893,35.064]},
+    {n:'鳴海',p:34,r:'28〜41',g:[136.897,35.055]},
+    {n:'左京山',p:30,r:'25〜36',g:[136.913,35.047]},
+    {n:'有松',p:36,r:'30〜43',g:[136.935,35.038]},
+    {n:'中京競馬場前',p:29,r:'24〜35',g:[136.949,35.032]},
+    {n:'前後',p:35,r:'29〜41',g:[136.967,35.025]},
+    {n:'豊明',p:29,r:'24〜35',g:[136.984,35.013]},
+    {n:'富士松',p:27,r:'22〜33',g:[137.001,35.001]},
+    {n:'一ツ木',p:26,r:'21〜31'},
+    {n:'富田',p:25,r:'20〜30'},
+    {n:'知立',p:32,r:'26〜39'},
+    {n:'三河知立',p:27,r:'22〜33'},
+    {n:'牛田',p:24,r:'19〜29'},
+    {n:'東岡崎',p:36,r:'30〜43'},
+    {n:'男川',p:26,r:'21〜32'},
+    {n:'美合',p:24,r:'19〜29'},
+    {n:'藤川',p:22,r:'17〜27'},
+    {n:'本宿',p:20,r:'16〜24'},
+    {n:'名電山中',p:18,r:'14〜22'},
+    {n:'名電長沢',p:17,r:'13〜21'},
+    {n:'舞木',p:17,r:'13〜21'},
+    {n:'相見',p:18,r:'14〜22'},
+    {n:'岡崎公園前',p:23,r:'18〜28'},
+    {n:'矢作橋',p:24,r:'19〜29'},
+    {n:'宇頭',p:22,r:'17〜27'},
+    {n:'新安城',p:26,r:'21〜32'},
+    {n:'北安城',p:23,r:'18〜28'},
+    {n:'桜井',p:24,r:'19〜29'},
+    {n:'南安城',p:22,r:'17〜27'},
+    {n:'碧海古井',p:20,r:'16〜24'},
+    {n:'堀内公園',p:20,r:'16〜24'},
+    {n:'牛久保',p:19,r:'15〜23'},
+    {n:'豊川稲荷',p:21,r:'17〜26'},
+    {n:'国府',p:22,r:'17〜27'},
+    {n:'伊奈',p:18,r:'14〜22'},
+    {n:'小田渕',p:17,r:'13〜21'},
+    {n:'諏訪町',p:17,r:'13〜21'},
+    {n:'豊橋',p:30,r:'25〜36'},
+  ]},
+  {id:'in',name:'名鉄犬山線',full:'名鉄犬山線（名古屋〜新鵜沼）',color:'#E0810F',dir:'名鉄名古屋 → 新鵜沼',st:[
+    {n:'名古屋',p:180,r:'140〜230+',g:[136.882,35.170]},
+    {n:'栄生',p:65,r:'56〜76',g:[136.876,35.179]},
+    {n:'上小田井',p:42,r:'36〜50',g:[136.864,35.208]},
+    {n:'西春',p:35,r:'29〜41',g:[136.852,35.226]},
+    {n:'徳重・名古屋芸大',p:30,r:'25〜36',g:[136.843,35.238]},
+    {n:'大山寺',p:27,r:'22〜33',g:[136.841,35.245]},
+    {n:'岩倉',p:30,r:'25〜36',g:[136.851,35.261]},
+    {n:'石仏',p:25,r:'20〜30',g:[136.866,35.269]},
+    {n:'木津用水',p:23,r:'18〜28',g:[136.873,35.271]},
+    {n:'布袋',p:23,r:'18〜28',g:[136.881,35.272]},
+    {n:'江南',p:28,r:'23〜34',g:[136.894,35.272]},
+    {n:'柏森',p:22,r:'17〜27',g:[136.906,35.267]},
+    {n:'扶桑',p:21,r:'16〜26',g:[136.913,35.258]},
+    {n:'山名',p:19,r:'15〜23',g:[136.924,35.248]},
+    {n:'犬山口',p:22,r:'17〜27',g:[136.940,35.239]},
+    {n:'犬山',p:25,r:'20〜31',g:[136.944,35.231]},
+    {n:'犬山遊園',p:22,r:'17〜27',g:[136.950,35.222]},
+    {n:'新鵜沼',p:21,r:'16〜26',g:[136.958,35.218]},
+  ]},
+  {id:'jr',name:'JR中央線',full:'JR中央本線（名古屋〜高蔵寺）',color:'#F78B2C',dir:'名古屋 → 高蔵寺',st:[
+    {n:'名古屋',p:180,r:'140〜230+',g:[136.882,35.170]},
+    {n:'千種',p:82,r:'71〜95',g:[136.927,35.163]},
+    {n:'大曽根',p:61,r:'52〜71',g:[136.921,35.180]},
+    {n:'新守山',p:41,r:'35〜48',g:[136.945,35.193]},
+    {n:'勝川',p:46,r:'39〜54',g:[136.960,35.201]},
+    {n:'春日井',p:37,r:'31〜44',g:[136.973,35.216]},
+    {n:'神領',p:29,r:'24〜35',g:[136.991,35.240]},
+    {n:'高蔵寺',p:29,r:'24〜35',g:[137.012,35.249]},
+  ]},
+  {id:'ki',name:'近鉄名古屋線',full:'近鉄名古屋線（名古屋市内区間）',color:'#0055A2',dir:'近鉄名古屋 → 蟹江・桑名方面',st:[
+    {n:'近鉄名古屋',p:178,r:'138〜225+',g:[136.883,35.172]},
+    {n:'米野',p:70,r:'60〜81',g:[136.874,35.162]},
+    {n:'黄金',p:64,r:'55〜74',g:[136.861,35.148]},
+    {n:'戸田',p:54,r:'46〜63',g:[136.849,35.139]},
+    {n:'烏森',p:47,r:'40〜55',g:[136.840,35.127]},
+    {n:'近鉄八田',p:42,r:'36〜50',g:[136.833,35.116]},
+    {n:'伏屋',p:36,r:'30〜43',g:[136.826,35.105]},
+    {n:'蟹江',p:28,r:'23〜34'},
+    {n:'富吉',p:26,r:'21〜31'},
+    {n:'佐古木',p:23,r:'18〜28'},
+    {n:'近鉄弥富',p:21,r:'17〜26'},
+  ]},
+  {id:'ao',name:'あおなみ線',full:'あおなみ線（名古屋〜金城ふ頭）',color:'#009FB9',dir:'名古屋 → 金城ふ頭',st:[
+    {n:'名古屋',p:180,r:'140〜230+',g:[136.882,35.170]},
+    {n:'小本',p:52,r:'44〜61',g:[136.857,35.152]},
+    {n:'荒子',p:45,r:'38〜53',g:[136.843,35.140]},
+    {n:'南荒子',p:42,r:'35〜49',g:[136.839,35.126]},
+    {n:'中島',p:38,r:'32〜45',g:[136.831,35.114]},
+    {n:'名古屋競馬場前',p:34,r:'28〜41',g:[136.823,35.101]},
+    {n:'荒子川公園',p:31,r:'26〜37',g:[136.822,35.090]},
+    {n:'港北',p:28,r:'23〜34',g:[136.822,35.078]},
+    {n:'船見町',p:25,r:'20〜30',g:[136.830,35.066]},
+    {n:'金城ふ頭',p:22,r:'17〜27',g:[136.851,35.052]},
+  ]},
+];
+
+let budget=210, curLine=LINES[0], curView='chart';
+let activeMaps=new Set(LINES.map(l=>l.id));
+let activeStation=null, activeBubble=null;
+
+// ── ビュー切り替え ──
+document.getElementById('vChart').addEventListener('click',()=>setView('chart'));
+document.getElementById('vMap').addEventListener('click',()=>setView('map'));
+function setView(v){
+  curView=v;
+  document.getElementById('vChart').classList.toggle('active',v==='chart');
+  document.getElementById('vMap').classList.toggle('active',v==='map');
+  document.getElementById('chartPane').style.display=v==='chart'?'':'none';
+  document.getElementById('mapPane').style.display=v==='map'?'':'none';
+  if(v==='map')drawMap();
+}
+
+// ── 予算フィルター ──
+const sl=document.getElementById('bSlider');
+sl.addEventListener('input',()=>{
+  budget=+sl.value;
+  document.getElementById('bLabel').textContent=budget>=210?'制限なし':budget+'万円/坪以下';
+  if(curView==='chart')renderChart(curLine);
+  else drawMap();
+  hideDetail();
+});
+document.getElementById('bReset').addEventListener('click',()=>{
+  sl.value=210;budget=210;
+  document.getElementById('bLabel').textContent='制限なし';
+  if(curView==='chart')renderChart(curLine);
+  else drawMap();
+  hideDetail();
+});
+
+// ── 沿線タブ ──
+const tabsEl=document.getElementById('lineTabs');
+LINES.forEach((line,i)=>{
+  const btn=document.createElement('button');
+  btn.className='ltab'+(i===0?' active':'');
+  btn.style.setProperty('--lc',line.color);
+  btn.innerHTML=`<span class="ldot"></span>${line.name}`;
+  btn.addEventListener('click',()=>{
+    document.querySelectorAll('.ltab').forEach(b=>b.classList.remove('active'));
+    btn.classList.add('active');
+    curLine=line;activeBubble=null;
+    renderChart(line);hideDetail();
+  });
+  tabsEl.appendChild(btn);
+});
+
+// ── 地図ビュートグル ──
+const togEl=document.getElementById('mapToggles');
+LINES.forEach(line=>{
+  const lb=document.createElement('label');
+  lb.className='mtog';
+  lb.style.setProperty('--lc',line.color);
+  const cb=document.createElement('input');
+  cb.type='checkbox';cb.checked=true;
+  cb.addEventListener('change',()=>{
+    if(cb.checked)activeMaps.add(line.id);else activeMaps.delete(line.id);
+    drawMap();
+  });
+  lb.appendChild(cb);lb.appendChild(document.createTextNode(line.name));
+  togEl.appendChild(lb);
+});
+
+// ── スムースカーブ ──
+function smoothPath(pts){
+  if(pts.length<2)return'';
+  let d=`M${pts[0].x.toFixed(1)} ${pts[0].y.toFixed(1)}`;
+  const T=0.38;
+  for(let i=0;i<pts.length-1;i++){
+    const p0=pts[Math.max(0,i-1)],p1=pts[i],p2=pts[i+1],p3=pts[Math.min(pts.length-1,i+2)];
+    const cp1x=p1.x+(p2.x-p0.x)*T/3,cp1y=p1.y+(p2.y-p0.y)*T/3;
+    const cp2x=p2.x-(p3.x-p1.x)*T/3,cp2y=p2.y-(p3.y-p1.y)*T/3;
+    d+=` C${cp1x.toFixed(1)} ${cp1y.toFixed(1)},${cp2x.toFixed(1)} ${cp2y.toFixed(1)},${p2.x.toFixed(1)} ${p2.y.toFixed(1)}`;
+  }
+  return d;
+}
+
+// ── チャート描画 ──
+function renderChart(line){
+  document.getElementById('chartName').textContent=line.full;
+  document.getElementById('chartDir').textContent=line.dir;
+  const sts=line.st,n=sts.length;
+  const SW=Math.max(68,Math.min(94,1200/n));
+  const ML=44,MR=24,MT=18,MB=88,CH=210;
+  const W=ML+n*SW+MR,H=MT+CH+MB;
+  const prices=sts.map(s=>s.p);
+  const maxP=Math.max(...prices),maxD=maxP*1.18;
+  const toY=p=>MT+CH*(1-p/maxD),toX=i=>ML+i*SW+SW/2;
+  const pts=sts.map((s,i)=>({x:toX(i),y:toY(s.p)}));
+  const lp=smoothPath(pts);
+  const baseY=MT+CH;
+  const ap=lp+` L${pts[pts.length-1].x.toFixed(1)} ${baseY} L${pts[0].x.toFixed(1)} ${baseY} Z`;
+  const NS='http://www.w3.org/2000/svg';
+  const svg=document.getElementById('chartSvg');
+  svg.setAttribute('width',W);svg.setAttribute('height',H);
+  svg.setAttribute('viewBox',`0 0 ${W} ${H}`);svg.innerHTML='';
+  const defs=document.createElementNS(NS,'defs');
+  const grad=document.createElementNS(NS,'linearGradient');
+  grad.setAttribute('id','ag');grad.setAttribute('x1','0');grad.setAttribute('y1','0');
+  grad.setAttribute('x2','0');grad.setAttribute('y2','1');
+  [['0%',0.15],['100%',0.01]].forEach(([o,op])=>{
+    const s=document.createElementNS(NS,'stop');
+    s.setAttribute('offset',o);s.setAttribute('stop-color',line.color);s.setAttribute('stop-opacity',op);
+    grad.appendChild(s);
+  });
+  defs.appendChild(grad);svg.appendChild(defs);
+  // グリッド
+  [25,50,75,100,150].filter(v=>v<=maxD*0.95).forEach(gv=>{
+    const gy=toY(gv);
+    const gl=document.createElementNS(NS,'line');
+    gl.setAttribute('x1',ML-6);gl.setAttribute('x2',W-MR);gl.setAttribute('y1',gy);gl.setAttribute('y2',gy);
+    gl.setAttribute('stroke','#E8E8EB');gl.setAttribute('stroke-width','1');svg.appendChild(gl);
+    const gt=document.createElementNS(NS,'text');
+    gt.setAttribute('x',ML-9);gt.setAttribute('y',gy+4);gt.setAttribute('text-anchor','end');
+    gt.setAttribute('font-size','10');gt.setAttribute('fill','#A0A0A8');gt.textContent=gv;svg.appendChild(gt);
+  });
+  // エリア
+  const area=document.createElementNS(NS,'path');area.setAttribute('d',ap);area.setAttribute('fill','url(#ag)');svg.appendChild(area);
+  // ライン
+  const lineEl=document.createElementNS(NS,'path');lineEl.setAttribute('d',lp);lineEl.setAttribute('fill','none');
+  lineEl.setAttribute('stroke',line.color);lineEl.setAttribute('stroke-width','2.5');
+  lineEl.setAttribute('stroke-linejoin','round');lineEl.setAttribute('stroke-linecap','round');svg.appendChild(lineEl);
+  // 軌道
+  const track=document.createElementNS(NS,'line');track.setAttribute('x1',ML);track.setAttribute('x2',W-MR);
+  track.setAttribute('y1',baseY);track.setAttribute('y2',baseY);track.setAttribute('stroke','#CFCFD4');track.setAttribute('stroke-width','2');svg.appendChild(track);
+  // 駅
+  sts.forEach((st,i)=>{
+    const px=pts[i].x,py=pts[i].y;
+    const dimmed=st.p>budget;
+    const color=dimmed?'#C0C0C5':pc(st.p);
+    const R=19;
+    const dl=document.createElementNS(NS,'line');
+    dl.setAttribute('x1',px);dl.setAttribute('x2',px);dl.setAttribute('y1',py+R-2);dl.setAttribute('y2',baseY);
+    dl.setAttribute('stroke',color);dl.setAttribute('stroke-width','1');dl.setAttribute('stroke-dasharray','2 3');dl.setAttribute('stroke-opacity','0.3');svg.appendChild(dl);
+    const circ=document.createElementNS(NS,'circle');
+    circ.setAttribute('cx',px);circ.setAttribute('cy',py);circ.setAttribute('r',R);
+    circ.setAttribute('fill',color);circ.setAttribute('stroke',dimmed?'#D8D8DC':'white');circ.setAttribute('stroke-width','2.5');
+    circ.style.cursor=dimmed?'not-allowed':'pointer';circ.style.transition='r 0.12s ease';svg.appendChild(circ);
+    const pt=document.createElementNS(NS,'text');
+    pt.setAttribute('x',px);pt.setAttribute('y',py+(st.p>=100?3:4));pt.setAttribute('text-anchor','middle');
+    pt.setAttribute('font-size',st.p>=100?'9':'10.5');pt.setAttribute('font-weight','800');pt.setAttribute('fill',dimmed?'#999':'white');
+    pt.style.pointerEvents='none';pt.textContent=st.p;svg.appendChild(pt);
+    const tick=document.createElementNS(NS,'line');tick.setAttribute('x1',px);tick.setAttribute('x2',px);
+    tick.setAttribute('y1',baseY);tick.setAttribute('y2',baseY+6);tick.setAttribute('stroke','#ADADB5');tick.setAttribute('stroke-width','1.5');svg.appendChild(tick);
+    const nl=document.createElementNS(NS,'text');
+    nl.setAttribute('x',px);nl.setAttribute('y',baseY+14);nl.setAttribute('text-anchor','end');
+    nl.setAttribute('font-size','11.5');nl.setAttribute('fill',dimmed?'#BBBBBC':'#3A3A3E');
+    nl.setAttribute('transform',`rotate(-45,${px},${baseY+14})`);nl.style.pointerEvents='none';nl.textContent=st.n;svg.appendChild(nl);
+    if(!dimmed){
+      const hit=document.createElementNS(NS,'rect');
+      hit.setAttribute('x',px-SW/2);hit.setAttribute('y',0);hit.setAttribute('width',SW);hit.setAttribute('height',H-20);
+      hit.setAttribute('fill','transparent');hit.style.cursor='pointer';
+      hit.addEventListener('click',()=>chartStationClick(st,circ,line));
+      hit.addEventListener('mouseenter',()=>{if(circ!==activeBubble)circ.setAttribute('r',R+3)});
+      hit.addEventListener('mouseleave',()=>{if(circ!==activeBubble)circ.setAttribute('r',R)});
+      svg.appendChild(hit);
+    }
+  });
+}
+function chartStationClick(st,circ,line){
+  if(activeBubble){activeBubble.setAttribute('r',19);activeBubble.setAttribute('stroke','white');activeBubble.setAttribute('stroke-width','2.5')}
+  activeBubble=circ;circ.setAttribute('r',23);circ.setAttribute('stroke','#1A1A1C');circ.setAttribute('stroke-width','3');
+  showDetail(st,line);
+}
+
+// ── 地図描画 ──
+function drawMap(){
+  const canvas=document.getElementById('mapCanvas');
+  const ctx=canvas.getContext('2d');
+  ctx.clearRect(0,0,CW,CH);
+  ctx.fillStyle='#EBF0E8';ctx.fillRect(0,0,CW,CH);
+
+  // ズームに応じたグリッド間隔
+  const gridStep=view.zoom<1.5?0.04:view.zoom<3?0.02:view.zoom<6?0.01:0.005;
+  ctx.strokeStyle='rgba(0,0,0,0.07)';ctx.lineWidth=0.5;
+  const g0=canvasToGeo(0,0),g1=canvasToGeo(CW,CH);
+  const lo0=Math.floor(g0.lon/gridStep)*gridStep;
+  const la0=Math.ceil(g0.lat/gridStep)*gridStep;
+  for(let lo=lo0;lo<=g1.lon+gridStep;lo+=gridStep){
+    const {x}=geoToCanvas(lo,0);ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,CH);ctx.stroke();
+  }
+  for(let la=g1.lat;la<=la0+gridStep;la+=gridStep){
+    const {y}=geoToCanvas(0,la);ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(CW,y);ctx.stroke();
+  }
+
+  // 区名ラベル（広域表示時のみ）
+  if(view.zoom<2.5){
+    ctx.fillStyle='rgba(60,70,80,0.28)';
+    ctx.font=`bold ${Math.round(10+view.zoom*1.5)}px sans-serif`;
+    ctx.textAlign='center';ctx.textBaseline='middle';
+    [['中村区',136.862,35.170],['熱田区',136.905,35.128],['名東区',136.998,35.170],
+     ['緑区',136.940,35.056],['守山区',136.955,35.210],['北区',136.900,35.203],
+     ['千種区',136.951,35.170],['南区',136.890,35.093],['港区',136.828,35.098],
+    ].forEach(([name,lon,lat])=>{
+      const {x,y}=geoToCanvas(lon,lat);
+      if(x>-10&&x<CW+10&&y>-10&&y<CH+10)ctx.fillText(name,x,y);
+    });
+  }
+
+  // 路線ライン
+  LINES.forEach(line=>{
+    if(!activeMaps.has(line.id))return;
+    const pts=line.st.filter(s=>s.g).map(s=>geoToCanvas(s.g[0],s.g[1]));
+    if(pts.length<2)return;
+    const lw=Math.max(1.5,Math.min(5,2.5*view.zoom*0.7));
+    ctx.strokeStyle=line.color;ctx.lineWidth=lw;ctx.lineCap='round';ctx.lineJoin='round';
+    ctx.beginPath();ctx.moveTo(pts[0].x,pts[0].y);
+    for(let i=1;i<pts.length;i++)ctx.lineTo(pts[i].x,pts[i].y);
+    ctx.stroke();
+  });
+
+  // 駅バブル（ズームに応じてサイズ・ラベル表示切替）
+  const R=Math.max(6,Math.min(22,9*Math.sqrt(view.zoom)));
+  const fontSize=Math.max(7,Math.min(12,R*0.85));
+  const showLabel=view.zoom>1.6;
+  const showName=view.zoom>2.5;
+
+  LINES.forEach(line=>{
+    if(!activeMaps.has(line.id))return;
+    line.st.forEach(st=>{
+      if(!st.g)return;
+      const {x,y}=geoToCanvas(st.g[0],st.g[1]);
+      if(x<-R-20||x>CW+R+20||y<-R-20||y>CH+R+20)return;
+      const dimmed=st.p>budget;
+      const col=dimmed?'#B8B8BC':pc(st.p);
+      ctx.beginPath();ctx.arc(x,y,R,0,Math.PI*2);
+      ctx.fillStyle=col;ctx.fill();
+      ctx.strokeStyle=dimmed?'#CCCCCE':'white';ctx.lineWidth=Math.max(1.5,R*0.18);ctx.stroke();
+      if(showLabel){
+        ctx.fillStyle=dimmed?'#888':'white';
+        ctx.font=`bold ${fontSize}px sans-serif`;
+        ctx.textAlign='center';ctx.textBaseline='middle';
+        ctx.fillText(st.p,x,y);
+      }
+      if(showName){
+        ctx.fillStyle=dimmed?'#AAAAB0':'#1A1A2C';
+        ctx.font=`${Math.max(9,Math.min(13,view.zoom*2.5))}px sans-serif`;
+        ctx.textAlign='left';ctx.textBaseline='middle';
+        ctx.shadowColor='rgba(255,255,255,0.9)';ctx.shadowBlur=3;
+        ctx.fillText(st.n,x+R+4,y);
+        ctx.shadowBlur=0;
+      }
+    });
+  });
+  drawScaleBar(ctx);
+}
+
+function drawScaleBar(ctx){
+  const g0=canvasToGeo(0,CH-20),g1=canvasToGeo(100,CH-20);
+  const km=Math.abs(g1.lon-g0.lon)*89;
+  let label,barKm;
+  if(km>10){barKm=10;label='10km';}
+  else if(km>5){barKm=5;label='5km';}
+  else if(km>2){barKm=2;label='2km';}
+  else if(km>1){barKm=1;label='1km';}
+  else{barKm=0.5;label='500m';}
+  const barPx=barKm/km*100;
+  const bx=14,by=CH-14;
+  ctx.strokeStyle='#334';ctx.lineWidth=2;ctx.lineCap='square';
+  ctx.beginPath();ctx.moveTo(bx,by);ctx.lineTo(bx+barPx,by);ctx.stroke();
+  ctx.beginPath();ctx.moveTo(bx,by-4);ctx.lineTo(bx,by+4);ctx.stroke();
+  ctx.beginPath();ctx.moveTo(bx+barPx,by-4);ctx.lineTo(bx+barPx,by+4);ctx.stroke();
+  ctx.fillStyle='#334';ctx.font='bold 10px sans-serif';
+  ctx.textAlign='center';ctx.textBaseline='bottom';
+  ctx.fillText(label,bx+barPx/2,by-5);
+}
+
+// ── 地図操作イベント ──
+(function(){
+  const canvas=document.getElementById('mapCanvas');
+
+  // ホイールズーム（カーソル位置中心）
+  canvas.addEventListener('wheel',(e)=>{
+    e.preventDefault();
+    const rect=canvas.getBoundingClientRect();
+    const mx=(e.clientX-rect.left)*(CW/rect.width);
+    const my=(e.clientY-rect.top)*(CH/rect.height);
+    const before=canvasToGeo(mx,my);
+    const factor=e.deltaY<0?1.15:1/1.15;
+    view.zoom=Math.max(0.4,Math.min(16,view.zoom*factor));
+    const after=canvasToGeo(mx,my);
+    view.cx+=before.lon-after.lon;
+    view.cy+=before.lat-after.lat;
+    drawMap();
+  },{passive:false});
+
+  // ドラッグパン
+  let dragging=false,lastMX=0,lastMY=0,dragMoved=false;
+  canvas.addEventListener('mousedown',(e)=>{dragging=true;dragMoved=false;lastMX=e.clientX;lastMY=e.clientY;canvas.classList.add('dragging')});
+  canvas.addEventListener('mousemove',(e)=>{
+    if(!dragging)return;
+    const rect=canvas.getBoundingClientRect();
+    const dx=(e.clientX-lastMX)*(CW/rect.width);
+    const dy=(e.clientY-lastMY)*(CH/rect.height);
+    if(Math.abs(dx)>1||Math.abs(dy)>1)dragMoved=true;
+    view.cx-=dx/(BSX*view.zoom);
+    view.cy+=dy/(BSY*view.zoom);
+    lastMX=e.clientX;lastMY=e.clientY;
+    drawMap();
+  });
+  canvas.addEventListener('mouseup',()=>{dragging=false;canvas.classList.remove('dragging')});
+  canvas.addEventListener('mouseleave',()=>{dragging=false;canvas.classList.remove('dragging')});
+
+  // タッチ操作（1本指パン・2本指ピンチズーム）
+  let lastTouchDist=null,lastTX=0,lastTY=0;
+  canvas.addEventListener('touchstart',(e)=>{
+    if(e.touches.length===1){lastTX=e.touches[0].clientX;lastTY=e.touches[0].clientY;}
+    else if(e.touches.length===2){const t=e.touches;lastTouchDist=Math.hypot(t[0].clientX-t[1].clientX,t[0].clientY-t[1].clientY);}
+    e.preventDefault();
+  },{passive:false});
+  canvas.addEventListener('touchmove',(e)=>{
+    const rect=canvas.getBoundingClientRect();
+    if(e.touches.length===1&&lastTX!=null){
+      const dx=(e.touches[0].clientX-lastTX)*(CW/rect.width);
+      const dy=(e.touches[0].clientY-lastTY)*(CH/rect.height);
+      view.cx-=dx/(BSX*view.zoom);view.cy+=dy/(BSY*view.zoom);
+      lastTX=e.touches[0].clientX;lastTY=e.touches[0].clientY;drawMap();
+    }else if(e.touches.length===2&&lastTouchDist!=null){
+      const t=e.touches;
+      const d=Math.hypot(t[0].clientX-t[1].clientX,t[0].clientY-t[1].clientY);
+      const mx=((t[0].clientX+t[1].clientX)/2-rect.left)*(CW/rect.width);
+      const my=((t[0].clientY+t[1].clientY)/2-rect.top)*(CH/rect.height);
+      const before=canvasToGeo(mx,my);
+      view.zoom=Math.max(0.4,Math.min(16,view.zoom*(d/lastTouchDist)));
+      const after=canvasToGeo(mx,my);
+      view.cx+=before.lon-after.lon;view.cy+=before.lat-after.lat;
+      lastTouchDist=d;drawMap();
+    }
+    e.preventDefault();
+  },{passive:false});
+  canvas.addEventListener('touchend',()=>{lastTouchDist=null;});
+
+  // ズームボタン
+  document.getElementById('zIn').addEventListener('click',()=>{view.zoom=Math.min(16,view.zoom*1.4);drawMap()});
+  document.getElementById('zOut').addEventListener('click',()=>{view.zoom=Math.max(0.4,view.zoom/1.4);drawMap()});
+  document.getElementById('zReset').addEventListener('click',()=>{view={...VIEW_DEF};drawMap()});
+
+  // 地図クリック（ドラッグ後は無視）
+  canvas.addEventListener('click',function(e){
+    if(dragMoved)return;
+    const rect=this.getBoundingClientRect();
+    const mx=(e.clientX-rect.left)*(CW/rect.width);
+    const my=(e.clientY-rect.top)*(CH/rect.height);
+    let best=null,bestD=Infinity;
+    LINES.forEach(line=>{
+      if(!activeMaps.has(line.id))return;
+      line.st.forEach(st=>{
+        if(!st.g||st.p>budget)return;
+        const {x,y}=geoToCanvas(st.g[0],st.g[1]);
+        const d=Math.sqrt((x-mx)**2+(y-my)**2);
+        if(d<18&&d<bestD){bestD=d;best={st,line}}
+      });
+    });
+    if(best)showDetail(best.st,best.line);
+    else hideDetail();
+  });
+})();
+
+// ── 詳細パネル ──
+function showDetail(st,line){
+  activeStation=st;
+  const t=tier(st.p);
+  const cnt=estCount(st.n,st.p);
+  document.getElementById('dName').textContent=st.n+'駅周辺';
+  document.getElementById('dLine').textContent=line.full;
+  document.getElementById('dPrice').innerHTML=`<span style="color:${t.c}">${st.p}</span><span class="d-unit" style="color:${t.c}">万円/坪</span>`;
+  document.getElementById('dRange').textContent=`参考レンジ：${st.r} 万円/坪`;
+  document.getElementById('dCount').innerHTML=`徒歩圏内の目安物件数：<b>約${cnt}件</b>（参考値）`;
+  const badge=document.getElementById('dTier');badge.textContent=t.l;badge.style.background=t.c;
+  document.getElementById('detail').classList.remove('hidden');
+  setTimeout(()=>document.getElementById('detail').scrollIntoView({behavior:'smooth',block:'nearest'}),60);
+}
+function hideDetail(){
+  document.getElementById('detail').classList.add('hidden');
+  activeStation=null;
+}
+
+// ── 初期描画 ──
+renderChart(LINES[0]);
+</script>
