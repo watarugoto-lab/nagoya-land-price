@@ -191,6 +191,26 @@ function clampView(){
   view.zoom=Math.max(0.4,Math.min(16,view.zoom));
 }
 
+// ── 行政区グリッド（約2.5km四方の近似マップ）──
+const WARD_NAMES={mo:'守山区',ki:'北区',ni:'西区',na:'中村区',hi:'東区',nk:'中区',ch:'千種区',me:'名東区',ng:'中川区',sh:'昭和区',at:'熱田区',mi:'瑞穂区',te:'天白区',mn:'南区',po:'港区',md:'緑区'};
+// 経度の区切り（西→東）11本
+const WLON=[136.800,136.825,136.850,136.875,136.900,136.925,136.950,136.975,137.000,137.025,137.055];
+// 緯度の区切り（北→南）11本
+const WLAT=[35.245,35.225,35.205,35.185,35.165,35.145,35.125,35.105,35.085,35.065,35.045];
+// 各セルにどの区が入るか（'.'=市外）行=北→南、列=西→東
+const WGRID=[
+  ['.','.','ki','ki','ki','mo','mo','mo','.','.'],
+  ['.','ni','ki','ki','ki','mo','mo','mo','mo','.'],
+  ['.','ni','ki','ki','hi','mo','mo','mo','mo','.'],
+  ['ng','ni','na','hi','hi','ch','ch','me','me','me'],
+  ['ng','na','na','nk','nk','ch','ch','me','me','me'],
+  ['ng','ng','nk','at','mi','sh','te','te','te','.'],
+  ['ng','ng','at','at','mi','mi','te','te','.','.'],
+  ['po','ng','mn','mn','mn','md','md','md','.','.'],
+  ['po','po','po','mn','mn','md','md','md','.','.'],
+  ['po','po','po','po','md','md','md','.','.','.'],
+];
+
 // 路線データ  g=[lon,lat] (地図表示用)
 const LINES=[
   {id:'h',name:'東山線',full:'市営地下鉄 東山線',color:'#F7931E',dir:'高畑 ←→ 藤が丘',st:[
@@ -586,32 +606,25 @@ function drawMap(){
   const canvas=document.getElementById('mapCanvas');
   const ctx=canvas.getContext('2d');
   ctx.clearRect(0,0,CW,CH);
-  ctx.fillStyle='#EBF0E8';ctx.fillRect(0,0,CW,CH);
+  ctx.fillStyle='#E2E9DD';ctx.fillRect(0,0,CW,CH);
 
-  // ズームに応じたグリッド間隔
-  const gridStep=view.zoom<1.5?0.04:view.zoom<3?0.02:view.zoom<6?0.01:0.005;
-  ctx.strokeStyle='rgba(0,0,0,0.07)';ctx.lineWidth=0.5;
-  const g0=canvasToGeo(0,0),g1=canvasToGeo(CW,CH);
-  const lo0=Math.floor(g0.lon/gridStep)*gridStep;
-  const la0=Math.ceil(g0.lat/gridStep)*gridStep;
-  for(let lo=lo0;lo<=g1.lon+gridStep;lo+=gridStep){
-    const {x}=geoToCanvas(lo,0);ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,CH);ctx.stroke();
-  }
-  for(let la=g1.lat;la<=la0+gridStep;la+=gridStep){
-    const {y}=geoToCanvas(0,la);ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(CW,y);ctx.stroke();
-  }
+  // 行政区の陸地と境界
+  drawWards(ctx);
 
   // 区名ラベル（広域表示時のみ）
-  if(view.zoom<2.5){
-    ctx.fillStyle='rgba(60,70,80,0.28)';
-    ctx.font=`bold ${Math.round(10+view.zoom*1.5)}px sans-serif`;
+  if(view.zoom<3.4){
+    ctx.fillStyle='rgba(70,80,70,0.42)';
+    ctx.font=`bold ${Math.round(9+view.zoom*1.4)}px sans-serif`;
     ctx.textAlign='center';ctx.textBaseline='middle';
-    [['中村区',136.862,35.170],['熱田区',136.905,35.128],['名東区',136.998,35.170],
-     ['緑区',136.940,35.056],['守山区',136.955,35.210],['北区',136.900,35.203],
-     ['千種区',136.951,35.170],['南区',136.890,35.093],['港区',136.828,35.098],
-    ].forEach(([name,lon,lat])=>{
-      const {x,y}=geoToCanvas(lon,lat);
-      if(x>-10&&x<CW+10&&y>-10&&y<CH+10)ctx.fillText(name,x,y);
+    const acc={};
+    for(let r=0;r<WGRID.length;r++)for(let c=0;c<WGRID[r].length;c++){
+      const w=WGRID[r][c];if(w==='.')continue;
+      acc[w]||(acc[w]={sl:0,st:0,n:0});
+      acc[w].sl+=(WLON[c]+WLON[c+1])/2;acc[w].st+=(WLAT[r]+WLAT[r+1])/2;acc[w].n++;
+    }
+    Object.keys(acc).forEach(w=>{
+      const a=acc[w],{x,y}=geoToCanvas(a.sl/a.n,a.st/a.n);
+      if(x>-20&&x<CW+20&&y>-20&&y<CH+20)ctx.fillText(WARD_NAMES[w],x,y);
     });
   }
 
@@ -661,6 +674,37 @@ function drawMap(){
     });
   });
   drawScaleBar(ctx);
+}
+
+// 行政区の陸地塗りと境界線（市境＝太線、区境＝細線）
+function drawWards(ctx){
+  // 陸地塗り
+  ctx.fillStyle='#F4F3EC';
+  for(let r=0;r<WGRID.length;r++)for(let c=0;c<WGRID[r].length;c++){
+    if(WGRID[r][c]==='.')continue;
+    const p0=geoToCanvas(WLON[c],WLAT[r]);
+    const p1=geoToCanvas(WLON[c+1],WLAT[r+1]);
+    ctx.fillRect(p0.x,p0.y,p1.x-p0.x,p1.y-p0.y);
+  }
+  const get=(r,c)=>(r<0||c<0||r>=WGRID.length||c>=WGRID[0].length)?'.':WGRID[r][c];
+  const cityW=Math.max(1.8,Math.min(4.5,2.2*view.zoom));
+  const wardW=Math.max(0.5,Math.min(1.6,0.8*view.zoom));
+  // 縦の辺
+  for(let c=0;c<=WGRID[0].length;c++)for(let r=0;r<WGRID.length;r++){
+    const L=get(r,c-1),R=get(r,c);if(L===R)continue;
+    const a=geoToCanvas(WLON[c],WLAT[r]),b=geoToCanvas(WLON[c],WLAT[r+1]);
+    const city=(L==='.'||R==='.');
+    ctx.strokeStyle=city?'#6E7E69':'rgba(110,125,108,0.45)';ctx.lineWidth=city?cityW:wardW;
+    ctx.beginPath();ctx.moveTo(a.x,a.y);ctx.lineTo(b.x,b.y);ctx.stroke();
+  }
+  // 横の辺
+  for(let r=0;r<=WGRID.length;r++)for(let c=0;c<WGRID[0].length;c++){
+    const T=get(r-1,c),B=get(r,c);if(T===B)continue;
+    const a=geoToCanvas(WLON[c],WLAT[r]),b=geoToCanvas(WLON[c+1],WLAT[r]);
+    const city=(T==='.'||B==='.');
+    ctx.strokeStyle=city?'#6E7E69':'rgba(110,125,108,0.45)';ctx.lineWidth=city?cityW:wardW;
+    ctx.beginPath();ctx.moveTo(a.x,a.y);ctx.lineTo(b.x,b.y);ctx.stroke();
+  }
 }
 
 function drawScaleBar(ctx){
