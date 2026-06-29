@@ -747,16 +747,18 @@ function drawMap(){
       if(!st.g)return;
       const {x,y}=geoToCanvas(st.g[0],st.g[1]);
       if(x<-R-20||x>CW+R+20||y<-R-20||y>CH+R+20)return;
-      const dimmed=st.p>budget;
-      const col=dimmed?'#B8B8BC':pc(st.p);
+      const ep=RT_DATA[st.n]??st.p;
+      const hasRT=RT_DATA[st.n]!=null;
+      const dimmed=ep>budget;
+      const col=dimmed?'#B8B8BC':pc(ep);
       ctx.beginPath();ctx.arc(x,y,R,0,Math.PI*2);
       ctx.fillStyle=col;ctx.fill();
-      ctx.strokeStyle=dimmed?'#CCCCCE':'white';ctx.lineWidth=Math.max(1.5,R*0.18);ctx.stroke();
+      ctx.strokeStyle=dimmed?'#CCCCCE':(hasRT?'#3A8A3A':'white');ctx.lineWidth=Math.max(1.5,R*0.18);ctx.stroke();
       if(showLabel){
         ctx.fillStyle=dimmed?'#888':'white';
         ctx.font=`bold ${fontSize}px sans-serif`;
         ctx.textAlign='center';ctx.textBaseline='middle';
-        ctx.fillText(st.p,x,y);
+        ctx.fillText(ep,x,y);
       }
       if(showName){
         ctx.fillStyle=dimmed?'#AAAAB0':'#1A1A2C';
