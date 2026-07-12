@@ -528,8 +528,10 @@ function setView(v){
   document.getElementById('chartPane').style.display=v==='chart'?'':'none';
   document.getElementById('mapPane').style.display=v==='map'?'':'none';
   if(v==='map'){
-    if(!map)initLeafletMap();
-    else{map.invalidateSize();redrawMapLayers();}
+    requestAnimationFrame(()=>{
+      if(!map)initLeafletMap();
+      else{map.invalidateSize();redrawMapLayers();}
+    });
   }
 }
 
