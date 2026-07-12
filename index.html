@@ -1,5 +1,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>名古屋市 沿線別 坪単価マップ</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <style>
 :root{--bg:#F4F3EF;--sf:#FFF;--tx:#1A1A1C;--ts:#6B6B70;--ac:#1D3461;--bd:#E2E2E5}
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
@@ -41,14 +43,14 @@ body{background:var(--bg);color:var(--tx);font-family:'Hiragino Sans','Yu Gothic
 .mtog{display:flex;align-items:center;gap:5px;font-size:11px;cursor:pointer;user-select:none}
 .mtog input{accent-color:var(--lc,#333)}
 .map-wrap{margin:14px;background:var(--sf);border-radius:14px;box-shadow:0 2px 8px rgba(0,0,0,.07);overflow:hidden;position:relative}
-#mapCanvas{display:block;width:100%;cursor:grab;touch-action:none}
-#mapCanvas.dragging{cursor:grabbing}
-.map-ctrl{position:absolute;top:12px;right:12px;display:flex;flex-direction:column;gap:4px;z-index:10}
+#leafletMap{width:100%;height:560px;background:#E2E9DD;z-index:1}
+.map-ctrl{position:absolute;top:12px;right:12px;display:flex;flex-direction:column;gap:4px;z-index:1000}
 .map-ctrl button{width:34px;height:34px;border:1px solid var(--bd);border-radius:8px;background:rgba(255,255,255,.95);cursor:pointer;font-size:17px;font-weight:700;color:var(--tx);box-shadow:0 1px 4px rgba(0,0,0,.12);display:flex;align-items:center;justify-content:center;transition:background .1s}
 .map-ctrl button:hover{background:#fff}
 .map-ctrl .sep{height:8px}
-.map-hint{position:absolute;bottom:10px;left:12px;font-size:10px;color:rgba(0,0,0,.4);pointer-events:none}
-.map-scale{position:absolute;bottom:10px;right:12px;pointer-events:none}
+.map-hint{position:absolute;bottom:10px;left:12px;font-size:10px;color:rgba(0,0,0,.4);pointer-events:none;z-index:1000}
+.ward-label{font-size:11px;font-weight:700;color:rgba(60,70,60,.65);white-space:nowrap;pointer-events:none;text-shadow:0 0 3px rgba(255,255,255,.9),0 0 3px rgba(255,255,255,.9)}
+.st-tooltip{font-size:11px;font-weight:700;background:rgba(255,255,255,.92);border:none;box-shadow:0 1px 3px rgba(0,0,0,.2)}
 /* detail */
 .detail{margin:0 14px 14px;background:var(--sf);border-radius:14px;padding:14px 18px 16px;box-shadow:0 2px 8px rgba(0,0,0,.07);animation:si .16s ease}
 .detail.hidden{display:none}
@@ -131,7 +133,7 @@ body{background:var(--bg);color:var(--tx);font-family:'Hiragino Sans','Yu Gothic
 <div id="mapPane" style="display:none">
   <div class="map-toggles" id="mapToggles"></div>
   <div class="map-wrap">
-    <canvas id="mapCanvas" width="760" height="560"></canvas>
+    <div id="leafletMap"></div>
     <div class="map-ctrl">
       <button id="zIn" title="拡大">＋</button>
       <button id="zOut" title="縮小">－</button>
@@ -255,27 +257,10 @@ const RT_DATA = {
   '笠松': null,'蟹江': null,'富吉': null,'佐古木': null
 };
 
-// ── 地図ビュー ──
-const CW=760,CH=560;
-// 1倍時のスケール（px/度）
-const BSX=2667,BSY=1960;
-// スマートフォンは初期ズームを少し上げて駅バブルを見やすく
+// ── 地図ビュー（国土地理院タイル + Leaflet）──
 const isMobile=window.innerWidth<640;
-const INIT_VIEW={cx:136.945,cy:35.145,zoom:isMobile?1.25:1};
-let view={...INIT_VIEW};
-const VIEW_DEF={...INIT_VIEW};
-
-function geoToCanvas(lon,lat){
-  return{x:CW/2+(lon-view.cx)*BSX*view.zoom,
-         y:CH/2-(lat-view.cy)*BSY*view.zoom};
-}
-function canvasToGeo(cx,cy){
-  return{lon:view.cx+(cx-CW/2)/(BSX*view.zoom),
-         lat:view.cy-(cy-CH/2)/(BSY*view.zoom)};
-}
-function clampView(){
-  view.zoom=Math.max(0.4,Math.min(16,view.zoom));
-}
+const MAP_CENTER=[35.145,136.945];
+const MAP_INIT_ZOOM=isMobile?12:13;
 
 // ── 行政区グリッド（約2.5km四方の近似マップ）──
 const WARD_NAMES={mo:'守山区',ki:'北区',ni:'西区',na:'中村区',hi:'東区',nk:'中区',ch:'千種区',me:'名東区',ng:'中川区',sh:'昭和区',at:'熱田区',mi:'瑞穂区',te:'天白区',mn:'南区',po:'港区',md:'緑区'};
@@ -542,7 +527,10 @@ function setView(v){
   document.getElementById('vMap').classList.toggle('active',v==='map');
   document.getElementById('chartPane').style.display=v==='chart'?'':'none';
   document.getElementById('mapPane').style.display=v==='map'?'':'none';
-  if(v==='map')drawMap();
+  if(v==='map'){
+    if(!map)initLeafletMap();
+    else{map.invalidateSize();redrawMapLayers();}
+  }
 }
 
 // ── 予算フィルター ──
@@ -551,14 +539,14 @@ sl.addEventListener('input',()=>{
   budget=+sl.value;
   document.getElementById('bLabel').textContent=budget>=210?'制限なし':budget+'万円/坪以下';
   if(curView==='chart')renderChart(curLine);
-  else drawMap();
+  else if(map)redrawMapLayers();
   hideDetail();
 });
 document.getElementById('bReset').addEventListener('click',()=>{
   sl.value=210;budget=210;
   document.getElementById('bLabel').textContent='制限なし';
   if(curView==='chart')renderChart(curLine);
-  else drawMap();
+  else if(map)redrawMapLayers();
   hideDetail();
 });
 
@@ -588,7 +576,7 @@ LINES.forEach(line=>{
   cb.type='checkbox';cb.checked=true;
   cb.addEventListener('change',()=>{
     if(cb.checked)activeMaps.add(line.id);else activeMaps.delete(line.id);
-    drawMap();
+    if(map)redrawMapLayers();
   });
   lb.appendChild(cb);lb.appendChild(document.createTextNode(line.name));
   togEl.appendChild(lb);
@@ -704,228 +692,76 @@ function chartStationClick(st,circ,line){
   showDetail(st,line);
 }
 
-// ── 地図描画 ──
-function drawMap(){
-  const canvas=document.getElementById('mapCanvas');
-  const ctx=canvas.getContext('2d');
-  ctx.clearRect(0,0,CW,CH);
-  ctx.fillStyle='#E2E9DD';ctx.fillRect(0,0,CW,CH);
+// ── 地図描画（Leaflet + 国土地理院タイル）──
+let map=null,wardLayer,lineLayer,stationLayer;
 
-  // 行政区の陸地と境界
-  drawWards(ctx);
+function initLeafletMap(){
+  map=L.map('leafletMap',{zoomControl:false,minZoom:10,maxZoom:17})
+    .setView(MAP_CENTER,MAP_INIT_ZOOM);
+  L.tileLayer('https://cyberjapandata.gsi.go.jp/xyz/std/{z}/{x}/{y}.png',{
+    attribution:'<a href="https://maps.gsi.go.jp/development/ichiran.html" target="_blank" rel="noopener">地図：国土地理院</a>',
+    maxZoom:18
+  }).addTo(map);
+  L.control.scale({position:'bottomright',imperial:false}).addTo(map);
+  wardLayer=L.layerGroup().addTo(map);
+  lineLayer=L.layerGroup().addTo(map);
+  stationLayer=L.layerGroup().addTo(map);
+  drawWards();
+  redrawMapLayers();
+}
 
-  // 区名ラベル（広域表示時のみ）
-  if(view.zoom<3.4){
-    ctx.fillStyle='rgba(70,80,70,0.42)';
-    ctx.font=`bold ${Math.round(9+view.zoom*1.4)}px sans-serif`;
-    ctx.textAlign='center';ctx.textBaseline='middle';
-    const acc={};
-    for(let r=0;r<WGRID.length;r++)for(let c=0;c<WGRID[r].length;c++){
-      const w=WGRID[r][c];if(w==='.')continue;
-      acc[w]||(acc[w]={sl:0,st:0,n:0});
-      acc[w].sl+=(WLON[c]+WLON[c+1])/2;acc[w].st+=(WLAT[r]+WLAT[r+1])/2;acc[w].n++;
-    }
-    Object.keys(acc).forEach(w=>{
-      const a=acc[w],{x,y}=geoToCanvas(a.sl/a.n,a.st/a.n);
-      if(x>-20&&x<CW+20&&y>-20&&y<CH+20)ctx.fillText(WARD_NAMES[w],x,y);
-    });
+// 行政区の境界線・区名ラベル（近似矩形グリッド）
+function drawWards(){
+  const get=(r,c)=>(r<0||c<0||r>=WGRID.length||c>=WGRID[0].length)?'.':WGRID[r][c];
+  for(let c=0;c<=WGRID[0].length;c++)for(let r=0;r<WGRID.length;r++){
+    const Lc=get(r,c-1),Rc=get(r,c);if(Lc===Rc)continue;
+    const city=(Lc==='.'||Rc==='.');
+    L.polyline([[WLAT[r],WLON[c]],[WLAT[r+1],WLON[c]]],{color:'#6E7E69',weight:city?3:1,opacity:city?0.75:0.4,interactive:false}).addTo(wardLayer);
   }
-
-  // 路線ライン
-  LINES.forEach(line=>{
-    if(!activeMaps.has(line.id))return;
-    const pts=line.st.filter(s=>s.g).map(s=>geoToCanvas(s.g[0],s.g[1]));
-    if(pts.length<2)return;
-    const lw=Math.max(1.5,Math.min(5,2.5*view.zoom*0.7));
-    ctx.strokeStyle=line.color;ctx.lineWidth=lw;ctx.lineCap='round';ctx.lineJoin='round';
-    ctx.beginPath();ctx.moveTo(pts[0].x,pts[0].y);
-    for(let i=1;i<pts.length;i++)ctx.lineTo(pts[i].x,pts[i].y);
-    ctx.stroke();
+  for(let r=0;r<=WGRID.length;r++)for(let c=0;c<WGRID[0].length;c++){
+    const T=get(r-1,c),B=get(r,c);if(T===B)continue;
+    const city=(T==='.'||B==='.');
+    L.polyline([[WLAT[r],WLON[c]],[WLAT[r],WLON[c+1]]],{color:'#6E7E69',weight:city?3:1,opacity:city?0.75:0.4,interactive:false}).addTo(wardLayer);
+  }
+  const acc={};
+  for(let r=0;r<WGRID.length;r++)for(let c=0;c<WGRID[r].length;c++){
+    const w=WGRID[r][c];if(w==='.')continue;
+    acc[w]||(acc[w]={sl:0,st:0,n:0});
+    acc[w].sl+=(WLON[c]+WLON[c+1])/2;acc[w].st+=(WLAT[r]+WLAT[r+1])/2;acc[w].n++;
+  }
+  Object.keys(acc).forEach(w=>{
+    const a=acc[w];
+    L.marker([a.st/a.n,a.sl/a.n],{icon:L.divIcon({className:'ward-label',html:WARD_NAMES[w],iconSize:[60,16]}),interactive:false}).addTo(wardLayer);
   });
+}
 
-  // 駅バブル（ズームに応じてサイズ・ラベル表示切替）
-  const R=Math.max(6,Math.min(22,9*Math.sqrt(view.zoom)));
-  const fontSize=Math.max(7,Math.min(12,R*0.85));
-  const showLabel=view.zoom>1.6;
-  const showName=view.zoom>2.5;
-
+// 路線・駅バブルの再描画（予算フィルター・沿線トグル変更時に呼び直す）
+function redrawMapLayers(){
+  lineLayer.clearLayers();
+  stationLayer.clearLayers();
   LINES.forEach(line=>{
     if(!activeMaps.has(line.id))return;
+    const coords=line.st.filter(s=>s.g).map(s=>[s.g[1],s.g[0]]);
+    if(coords.length>=2)L.polyline(coords,{color:line.color,weight:4,opacity:0.85,interactive:false}).addTo(lineLayer);
     line.st.forEach(st=>{
       if(!st.g)return;
-      const {x,y}=geoToCanvas(st.g[0],st.g[1]);
-      if(x<-R-20||x>CW+R+20||y<-R-20||y>CH+R+20)return;
       const ep=RT_DATA[st.n]??st.p;
       const hasRT=RT_DATA[st.n]!=null;
       const dimmed=ep>budget;
       const col=dimmed?'#B8B8BC':pc(ep);
-      ctx.beginPath();ctx.arc(x,y,R,0,Math.PI*2);
-      ctx.fillStyle=col;ctx.fill();
-      ctx.strokeStyle=dimmed?'#CCCCCE':(hasRT?'#3A8A3A':'white');ctx.lineWidth=Math.max(1.5,R*0.18);ctx.stroke();
-      if(showLabel){
-        ctx.fillStyle=dimmed?'#888':'white';
-        ctx.font=`bold ${fontSize}px sans-serif`;
-        ctx.textAlign='center';ctx.textBaseline='middle';
-        ctx.fillText(ep,x,y);
-      }
-      if(showName){
-        ctx.fillStyle=dimmed?'#AAAAB0':'#1A1A2C';
-        ctx.font=`${Math.max(9,Math.min(13,view.zoom*2.5))}px sans-serif`;
-        ctx.textAlign='left';ctx.textBaseline='middle';
-        ctx.shadowColor='rgba(255,255,255,0.9)';ctx.shadowBlur=3;
-        ctx.fillText(st.n,x+R+4,y);
-        ctx.shadowBlur=0;
-      }
+      const marker=L.circleMarker([st.g[1],st.g[0]],{
+        radius:9,fillColor:col,fillOpacity:1,color:dimmed?'#CCCCCE':(hasRT?'#3A8A3A':'#fff'),weight:2.5
+      }).addTo(stationLayer);
+      marker.bindTooltip(`${st.n}　${ep}万円/坪`,{className:'st-tooltip',direction:'top',offset:[0,-8]});
+      if(!dimmed)marker.on('click',()=>showDetail(st,line));
     });
   });
-  drawScaleBar(ctx);
 }
 
-// 行政区の陸地塗りと境界線（市境＝太線、区境＝細線）
-function drawWards(ctx){
-  // 陸地塗り
-  ctx.fillStyle='#F4F3EC';
-  for(let r=0;r<WGRID.length;r++)for(let c=0;c<WGRID[r].length;c++){
-    if(WGRID[r][c]==='.')continue;
-    const p0=geoToCanvas(WLON[c],WLAT[r]);
-    const p1=geoToCanvas(WLON[c+1],WLAT[r+1]);
-    ctx.fillRect(p0.x,p0.y,p1.x-p0.x,p1.y-p0.y);
-  }
-  const get=(r,c)=>(r<0||c<0||r>=WGRID.length||c>=WGRID[0].length)?'.':WGRID[r][c];
-  const cityW=Math.max(1.8,Math.min(4.5,2.2*view.zoom));
-  const wardW=Math.max(0.5,Math.min(1.6,0.8*view.zoom));
-  // 縦の辺
-  for(let c=0;c<=WGRID[0].length;c++)for(let r=0;r<WGRID.length;r++){
-    const L=get(r,c-1),R=get(r,c);if(L===R)continue;
-    const a=geoToCanvas(WLON[c],WLAT[r]),b=geoToCanvas(WLON[c],WLAT[r+1]);
-    const city=(L==='.'||R==='.');
-    ctx.strokeStyle=city?'#6E7E69':'rgba(110,125,108,0.45)';ctx.lineWidth=city?cityW:wardW;
-    ctx.beginPath();ctx.moveTo(a.x,a.y);ctx.lineTo(b.x,b.y);ctx.stroke();
-  }
-  // 横の辺
-  for(let r=0;r<=WGRID.length;r++)for(let c=0;c<WGRID[0].length;c++){
-    const T=get(r-1,c),B=get(r,c);if(T===B)continue;
-    const a=geoToCanvas(WLON[c],WLAT[r]),b=geoToCanvas(WLON[c+1],WLAT[r]);
-    const city=(T==='.'||B==='.');
-    ctx.strokeStyle=city?'#6E7E69':'rgba(110,125,108,0.45)';ctx.lineWidth=city?cityW:wardW;
-    ctx.beginPath();ctx.moveTo(a.x,a.y);ctx.lineTo(b.x,b.y);ctx.stroke();
-  }
-}
-
-function drawScaleBar(ctx){
-  const g0=canvasToGeo(0,CH-20),g1=canvasToGeo(100,CH-20);
-  const km=Math.abs(g1.lon-g0.lon)*89;
-  let label,barKm;
-  if(km>10){barKm=10;label='10km';}
-  else if(km>5){barKm=5;label='5km';}
-  else if(km>2){barKm=2;label='2km';}
-  else if(km>1){barKm=1;label='1km';}
-  else{barKm=0.5;label='500m';}
-  const barPx=barKm/km*100;
-  const bx=14,by=CH-14;
-  ctx.strokeStyle='#334';ctx.lineWidth=2;ctx.lineCap='square';
-  ctx.beginPath();ctx.moveTo(bx,by);ctx.lineTo(bx+barPx,by);ctx.stroke();
-  ctx.beginPath();ctx.moveTo(bx,by-4);ctx.lineTo(bx,by+4);ctx.stroke();
-  ctx.beginPath();ctx.moveTo(bx+barPx,by-4);ctx.lineTo(bx+barPx,by+4);ctx.stroke();
-  ctx.fillStyle='#334';ctx.font='bold 10px sans-serif';
-  ctx.textAlign='center';ctx.textBaseline='bottom';
-  ctx.fillText(label,bx+barPx/2,by-5);
-}
-
-// ── 地図操作イベント ──
-(function(){
-  const canvas=document.getElementById('mapCanvas');
-
-  // ホイールズーム（カーソル位置中心）
-  canvas.addEventListener('wheel',(e)=>{
-    e.preventDefault();
-    const rect=canvas.getBoundingClientRect();
-    const mx=(e.clientX-rect.left)*(CW/rect.width);
-    const my=(e.clientY-rect.top)*(CH/rect.height);
-    const before=canvasToGeo(mx,my);
-    const factor=e.deltaY<0?1.15:1/1.15;
-    view.zoom=Math.max(0.4,Math.min(16,view.zoom*factor));
-    const after=canvasToGeo(mx,my);
-    view.cx+=before.lon-after.lon;
-    view.cy+=before.lat-after.lat;
-    drawMap();
-  },{passive:false});
-
-  // ドラッグパン
-  let dragging=false,lastMX=0,lastMY=0,dragMoved=false;
-  canvas.addEventListener('mousedown',(e)=>{dragging=true;dragMoved=false;lastMX=e.clientX;lastMY=e.clientY;canvas.classList.add('dragging')});
-  canvas.addEventListener('mousemove',(e)=>{
-    if(!dragging)return;
-    const rect=canvas.getBoundingClientRect();
-    const dx=(e.clientX-lastMX)*(CW/rect.width);
-    const dy=(e.clientY-lastMY)*(CH/rect.height);
-    if(Math.abs(dx)>1||Math.abs(dy)>1)dragMoved=true;
-    view.cx-=dx/(BSX*view.zoom);
-    view.cy+=dy/(BSY*view.zoom);
-    lastMX=e.clientX;lastMY=e.clientY;
-    drawMap();
-  });
-  canvas.addEventListener('mouseup',()=>{dragging=false;canvas.classList.remove('dragging')});
-  canvas.addEventListener('mouseleave',()=>{dragging=false;canvas.classList.remove('dragging')});
-
-  // タッチ操作（1本指パン・2本指ピンチズーム）
-  let lastTouchDist=null,lastTX=0,lastTY=0;
-  canvas.addEventListener('touchstart',(e)=>{
-    if(e.touches.length===1){lastTX=e.touches[0].clientX;lastTY=e.touches[0].clientY;}
-    else if(e.touches.length===2){const t=e.touches;lastTouchDist=Math.hypot(t[0].clientX-t[1].clientX,t[0].clientY-t[1].clientY);}
-    e.preventDefault();
-  },{passive:false});
-  canvas.addEventListener('touchmove',(e)=>{
-    const rect=canvas.getBoundingClientRect();
-    if(e.touches.length===1&&lastTX!=null){
-      const dx=(e.touches[0].clientX-lastTX)*(CW/rect.width);
-      const dy=(e.touches[0].clientY-lastTY)*(CH/rect.height);
-      view.cx-=dx/(BSX*view.zoom);view.cy+=dy/(BSY*view.zoom);
-      lastTX=e.touches[0].clientX;lastTY=e.touches[0].clientY;drawMap();
-    }else if(e.touches.length===2&&lastTouchDist!=null){
-      const t=e.touches;
-      const d=Math.hypot(t[0].clientX-t[1].clientX,t[0].clientY-t[1].clientY);
-      const mx=((t[0].clientX+t[1].clientX)/2-rect.left)*(CW/rect.width);
-      const my=((t[0].clientY+t[1].clientY)/2-rect.top)*(CH/rect.height);
-      const before=canvasToGeo(mx,my);
-      view.zoom=Math.max(0.4,Math.min(16,view.zoom*(d/lastTouchDist)));
-      const after=canvasToGeo(mx,my);
-      view.cx+=before.lon-after.lon;view.cy+=before.lat-after.lat;
-      lastTouchDist=d;drawMap();
-    }
-    e.preventDefault();
-  },{passive:false});
-  canvas.addEventListener('touchend',()=>{lastTouchDist=null;});
-
-  // ズームボタン
-  document.getElementById('zIn').addEventListener('click',()=>{view.zoom=Math.min(16,view.zoom*1.4);drawMap()});
-  document.getElementById('zOut').addEventListener('click',()=>{view.zoom=Math.max(0.4,view.zoom/1.4);drawMap()});
-  document.getElementById('zReset').addEventListener('click',()=>{view={...VIEW_DEF};drawMap()});
-
-  // ヒントテキストをタッチデバイスに合わせて変更
-  if(isMobile) document.getElementById('mapHint').textContent='ピンチ：ズーム ／ 1本指：移動 ／ 駅タップ：詳細';
-
-  // 地図クリック（ドラッグ後は無視）
-  const hitR=isMobile?26:18;
-  canvas.addEventListener('click',function(e){
-    if(dragMoved)return;
-    const rect=this.getBoundingClientRect();
-    const mx=(e.clientX-rect.left)*(CW/rect.width);
-    const my=(e.clientY-rect.top)*(CH/rect.height);
-    let best=null,bestD=Infinity;
-    LINES.forEach(line=>{
-      if(!activeMaps.has(line.id))return;
-      line.st.forEach(st=>{
-        if(!st.g||st.p>budget)return;
-        const {x,y}=geoToCanvas(st.g[0],st.g[1]);
-        const d=Math.sqrt((x-mx)**2+(y-my)**2);
-        if(d<hitR&&d<bestD){bestD=d;best={st,line}}
-      });
-    });
-    if(best)showDetail(best.st,best.line);
-    else hideDetail();
-  });
-})();
+document.getElementById('zIn').addEventListener('click',()=>{if(map)map.zoomIn()});
+document.getElementById('zOut').addEventListener('click',()=>{if(map)map.zoomOut()});
+document.getElementById('zReset').addEventListener('click',()=>{if(map)map.setView(MAP_CENTER,MAP_INIT_ZOOM)});
+if(isMobile)document.getElementById('mapHint').textContent='ピンチ：ズーム ／ 1本指：移動 ／ 駅タップ：詳細';
 
 // ── 詳細パネル ──
 function showDetail(st,line){
